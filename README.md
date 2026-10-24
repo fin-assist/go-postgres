@@ -4,7 +4,7 @@
 
 ## Внедрение
 
-1. Подключить опубликованную версию `github.com/fin-assist/go-postgres`. До первого выпуска допустим закреплённый commit/pseudo-version для проверки интеграции; теги ставит владелец.
+1. Подключить опубликованную версию: `go get github.com/fin-assist/go-postgres@v0.1.0`. Теги следующих версий ставит владелец после мержа release PR; наличие секции в CHANGELOG ещё не означает публикацию версии.
 2. Создать **один** `postgres.New(pool)` на основной `*pgxpool.Pool`. Пул открывает и закрывает сервис.
 3. Передавать менеджер репозиториям; внутри `Run` брать `manager.Tx(ctx)`. Он реализует `interface { Tx(context.Context) (pgx.Tx, bool) }` для idempotency/outbox. Библиотеки не завершают полученную транзакцию.
 4. Usecase объявляет свой интерфейс `Run(context.Context, func(context.Context) error) error`. Для операции с ожидаемыми нарушениями адаптер реализует его через `RunMapped`, задавая обработчик **всей операции**.
@@ -54,6 +54,6 @@ make cover
 
 Без `TEST_DATABASE_URL` используется PostgreSQL 18 в testcontainers. Отсутствие PostgreSQL в CI — ошибка, локально — skip, который не считается проверкой. Интеграционные тесты проверяют реальные FK/UNIQUE, отложенный COMMIT, исправление ссылки до COMMIT, вложенный откат, panic и независимые конкурентные транзакции. Usage-пример с переводом в `finerr.NOT_FOUND` тестируется в шаблоне сервиса.
 
-CI и скрипты взяты из шаблона: tidy, vet, race, lint, CHANGELOG, анализ API и покрытие изменённых строк (цель 80%). [CHANGELOG.md](CHANGELOG.md), [docs/releasing.md](docs/releasing.md), [AGENTS.md](AGENTS.md). Своих метрик, фоновых заданий и миграций нет. Первый выпуск — решением владельца, теги агент не ставит.
+CI и скрипты взяты из шаблона: tidy, vet, race, lint, CHANGELOG, анализ API и покрытие изменённых строк (цель 80%). [CHANGELOG.md](CHANGELOG.md), [docs/releasing.md](docs/releasing.md), [AGENTS.md](AGENTS.md). Своих метрик, фоновых заданий и миграций нет. Опубликован [v0.1.0](https://github.com/fin-assist/go-postgres/releases/tag/v0.1.0); подготовленный в CHANGELOG v0.1.1 выпускается по [инструкции](docs/releasing.md#выпуск). Теги агент не ставит.
 
-Renovate до bootstrap собственной `renovate-policy` и проверки секретов/защиты выключен (`renovate.json`). Настройка — [docs/renovate-policy.md](docs/renovate-policy.md). В первом PR workflow Claude ещё отсутствует на main, поэтому его нельзя вызвать комментарием до мержа инфраструктуры; это ограничение bootstrap, а не завершённое ревью.
+Renovate до bootstrap собственной `renovate-policy` и проверки секретов/защиты выключен (`renovate.json`). Настройка — [docs/renovate-policy.md](docs/renovate-policy.md), включение сопровождается в [FIN-237](https://finassist.youtrack.cloud/issue/FIN-237). Workflow Claude уже в `main`; ревью последующих PR запрашивается по [AGENTS.md](AGENTS.md#workflow).
