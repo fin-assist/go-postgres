@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "local>fin-assist/go-postgres:base"
+  ],
+  "automerge": false,
+  "dependencyDashboard": true,
+  "prBodyNotes": [
+    "<!-- fin211-update {{{encodeBase64 (toJSON (toObject 'depName' depName 'packageName' packageName 'newValue' newValue 'datasource' datasource 'newDigest' newDigest 'newMajor' newMajor))}}} -->"
+  ],
+  "commitBody": "{{#each upgrades}}<!-- fin211-update {{{encodeBase64 (toJSON (toObject 'depName' depName 'packageName' packageName 'newValue' newValue 'datasource' datasource 'newDigest' newDigest 'newMajor' newMajor))}}} -->\n{{/each}}",
+  "enabled": false
+}
