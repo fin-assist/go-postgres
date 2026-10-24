@@ -52,7 +52,7 @@ func rowCount(t *testing.T, pool *pgxpool.Pool) int {
 	return n
 }
 
-func TestDeferredViolationAtCommit(t *testing.T) {
+func TestIntegrationDeferredViolationAtCommit(t *testing.T) {
 	pool, m := database(t)
 	ctx := context.Background()
 	missing := errors.New("parent not found")
@@ -85,7 +85,7 @@ func TestDeferredViolationAtCommit(t *testing.T) {
 	}
 }
 
-func TestDeferredReferenceCanBeRepairedByAnotherRepository(t *testing.T) {
+func TestIntegrationDeferredReferenceCanBeRepairedByAnotherRepository(t *testing.T) {
 	pool, m := database(t)
 	err := m.Run(context.Background(), func(ctx context.Context) error {
 		tx := transaction(t, m, ctx)
@@ -111,7 +111,7 @@ func writeParent(ctx context.Context, provider interface {
 	return err
 }
 
-func TestImmediateViolations(t *testing.T) {
+func TestIntegrationImmediateViolations(t *testing.T) {
 	for _, tc := range []struct{ name, sql, state, constraint string }{
 		{"foreign key", `INSERT INTO immediate_child VALUES (1,42)`, "23503", "immediate_parent_fk"},
 		{"unique", `INSERT INTO parent VALUES (1),(1)`, "23505", "parent_pkey"},
@@ -138,7 +138,7 @@ func TestImmediateViolations(t *testing.T) {
 	}
 }
 
-func TestUnknownCommitViolationIsPreserved(t *testing.T) {
+func TestIntegrationUnknownCommitViolationIsPreserved(t *testing.T) {
 	_, m := database(t)
 	err := m.RunMapped(context.Background(), pgx.TxOptions{}, func(err error) error {
 		if postgres.IsViolation(err, "23503", "some_other_fk") {
@@ -154,7 +154,7 @@ func TestUnknownCommitViolationIsPreserved(t *testing.T) {
 	}
 }
 
-func TestNestedRollbackAndPanic(t *testing.T) {
+func TestIntegrationNestedRollbackAndPanic(t *testing.T) {
 	for _, panics := range []bool{false, true} {
 		t.Run(fmt.Sprint(panics), func(t *testing.T) {
 			pool, m := database(t)
@@ -193,7 +193,7 @@ func TestNestedRollbackAndPanic(t *testing.T) {
 	}
 }
 
-func TestConcurrentIndependentTransactions(t *testing.T) {
+func TestIntegrationConcurrentIndependentTransactions(t *testing.T) {
 	pool, m := database(t)
 	var wg sync.WaitGroup
 	errs := make(chan error, 4)
@@ -217,7 +217,7 @@ func TestConcurrentIndependentTransactions(t *testing.T) {
 	}
 }
 
-func TestGoexitRollsBackAndReleasesConnection(t *testing.T) {
+func TestIntegrationGoexitRollsBackAndReleasesConnection(t *testing.T) {
 	for _, nested := range []bool{false, true} {
 		t.Run(fmt.Sprintf("nested=%v", nested), func(t *testing.T) {
 			config, err := pgxpool.ParseConfig(pgtest.DSN(t))

@@ -49,7 +49,7 @@ func (tx *managerFakeTx) Rollback(ctx context.Context) error {
 	return tx.rollbackErr
 }
 
-func TestManagerRunWithSuccess(t *testing.T) {
+func TestUnitManagerRunWithSuccess(t *testing.T) {
 	tx := &managerFakeTx{}
 	pool := &managerFakeBeginner{tx: tx}
 	m := New(pool)
@@ -79,7 +79,7 @@ func TestManagerRunWithSuccess(t *testing.T) {
 	}
 }
 
-func TestManagerBeginErrorIsNotMapped(t *testing.T) {
+func TestUnitManagerBeginErrorIsNotMapped(t *testing.T) {
 	original := &pgconn.PgError{Code: "23503", ConstraintName: "category_fk"}
 	pool := &managerFakeBeginner{err: original}
 	m := New(pool)
@@ -95,7 +95,7 @@ func TestManagerBeginErrorIsNotMapped(t *testing.T) {
 	}
 }
 
-func TestManagerCallbackErrorPreserved(t *testing.T) {
+func TestUnitManagerCallbackErrorPreserved(t *testing.T) {
 	domain := errors.New("domain failure")
 	original := fmt.Errorf("operation: %w", domain)
 	tx := &managerFakeTx{}
@@ -112,7 +112,7 @@ func TestManagerCallbackErrorPreserved(t *testing.T) {
 	}
 }
 
-func TestManagerMapsStatementAndCommit(t *testing.T) {
+func TestUnitManagerMapsStatementAndCommit(t *testing.T) {
 	for _, stage := range []string{"statement", "commit"} {
 		t.Run(stage, func(t *testing.T) {
 			original := &pgconn.PgError{Code: "23503", ConstraintName: "category_fk", Detail: "private-key"}
@@ -152,7 +152,7 @@ func TestManagerMapsStatementAndCommit(t *testing.T) {
 	}
 }
 
-func TestManagerCommitErrorPreserved(t *testing.T) {
+func TestUnitManagerCommitErrorPreserved(t *testing.T) {
 	original := errors.New("connection lost on COMMIT")
 	tx := &managerFakeTx{commitErr: original, rollbackErr: pgx.ErrTxClosed}
 	m := New(&managerFakeBeginner{tx: tx})
@@ -165,7 +165,7 @@ func TestManagerCommitErrorPreserved(t *testing.T) {
 	}
 }
 
-func TestManagerRollbackFailureAndCanceledContext(t *testing.T) {
+func TestUnitManagerRollbackFailureAndCanceledContext(t *testing.T) {
 	original := errors.New("callback failed")
 	rollbackErr := &pgconn.PgError{Code: "23503", ConstraintName: "category_fk"}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -196,7 +196,7 @@ func TestManagerRollbackFailureAndCanceledContext(t *testing.T) {
 	}
 }
 
-func TestManagerRollbackFailurePreventsDomainMapping(t *testing.T) {
+func TestUnitManagerRollbackFailurePreventsDomainMapping(t *testing.T) {
 	original := &pgconn.PgError{Code: "23505", ConstraintName: "name_unique"}
 	domain, cleanup := errors.New("name taken"), errors.New("rollback connection lost")
 	tx := &managerFakeTx{rollbackErr: cleanup}
@@ -208,7 +208,7 @@ func TestManagerRollbackFailurePreventsDomainMapping(t *testing.T) {
 	}
 }
 
-func TestManagerPanicRollsBackAndRepanics(t *testing.T) {
+func TestUnitManagerPanicRollsBackAndRepanics(t *testing.T) {
 	panicValue := &struct{ message string }{"callback panic"}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -236,7 +236,7 @@ func TestManagerPanicRollsBackAndRepanics(t *testing.T) {
 	}
 }
 
-func TestManagerGoexitRollsBack(t *testing.T) {
+func TestUnitManagerGoexitRollsBack(t *testing.T) {
 	for _, nested := range []bool{false, true} {
 		for _, rollbackFails := range []bool{false, true} {
 			t.Run(fmt.Sprintf("nested=%v/rollbackFails=%v", nested, rollbackFails), func(t *testing.T) {
@@ -290,7 +290,7 @@ func TestManagerGoexitRollsBack(t *testing.T) {
 	}
 }
 
-func TestManagerNestedRunJoinsAndIgnoresOptions(t *testing.T) {
+func TestUnitManagerNestedRunJoinsAndIgnoresOptions(t *testing.T) {
 	tx := &managerFakeTx{}
 	pool := &managerFakeBeginner{tx: tx}
 	m := New(pool)
@@ -317,7 +317,7 @@ func TestManagerNestedRunJoinsAndIgnoresOptions(t *testing.T) {
 	}
 }
 
-func TestManagerNestedErrorRollsBackOuter(t *testing.T) {
+func TestUnitManagerNestedErrorRollsBackOuter(t *testing.T) {
 	domain := errors.New("nested failure")
 	tx := &managerFakeTx{}
 	m := New(&managerFakeBeginner{tx: tx})
@@ -329,7 +329,7 @@ func TestManagerNestedErrorRollsBackOuter(t *testing.T) {
 	}
 }
 
-func TestManagerNestedMapperRejected(t *testing.T) {
+func TestUnitManagerNestedMapperRejected(t *testing.T) {
 	tx := &managerFakeTx{}
 	m := New(&managerFakeBeginner{tx: tx})
 	err := m.Run(context.Background(), func(ctx context.Context) error {
@@ -340,7 +340,7 @@ func TestManagerNestedMapperRejected(t *testing.T) {
 	}
 }
 
-func TestManagerForeignTransactionRejected(t *testing.T) {
+func TestUnitManagerForeignTransactionRejected(t *testing.T) {
 	for _, mode := range []string{"Run", "RunWith", "RunMapped"} {
 		t.Run(mode, func(t *testing.T) {
 			outerTx := &managerFakeTx{}

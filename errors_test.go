@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func TestIsViolation(t *testing.T) {
+func TestUnitIsViolation(t *testing.T) {
 	fk := &pgconn.PgError{Code: "23503", ConstraintName: "category_fk"}
 	wrapped := fmt.Errorf("query: %w", fmt.Errorf("repository: %w", fk))
 	for _, tc := range []struct {
@@ -39,7 +39,7 @@ func TestIsViolation(t *testing.T) {
 	}
 }
 
-func TestMapErrorPreservesUnmappedErrors(t *testing.T) {
+func TestUnitMapErrorPreservesUnmappedErrors(t *testing.T) {
 	fk := &pgconn.PgError{Code: "23503", ConstraintName: "category_fk"}
 	domain := errors.New("domain error")
 	for _, tc := range []struct {
@@ -68,7 +68,7 @@ func TestMapErrorPreservesUnmappedErrors(t *testing.T) {
 	}
 }
 
-func TestMapErrorExpectedViolationHasNoDatabaseDetail(t *testing.T) {
+func TestUnitMapErrorExpectedViolationHasNoDatabaseDetail(t *testing.T) {
 	for _, code := range []string{"23503", "23505"} {
 		t.Run(code, func(t *testing.T) {
 			original := &pgconn.PgError{Code: code, ConstraintName: "expected_constraint", Detail: "Key (user_id)=(secret-user-id)"}
