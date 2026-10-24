@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -212,5 +214,78 @@ func TestConcurrentIndependentTransactions(t *testing.T) {
 	}
 	if rowCount(t, pool) != 4 {
 		t.Fatal("independent transactions lost writes")
+	}
+}
+
+func TestGoexitRollsBackAndReleasesConnection(t *testing.T) {
+	for _, nested := range []bool{false, true} {
+		t.Run(fmt.Sprintf("nested=%v", nested), func(t *testing.T) {
+			config, err := pgxpool.ParseConfig(pgtest.DSN(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			config.MaxConns = 1
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			pool, err := pgxpool.NewWithConfig(ctx, config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(pool.Close)
+			if _, err := pool.Exec(ctx, `CREATE TABLE item (id int PRIMARY KEY)`); err != nil {
+				t.Fatal(err)
+			}
+			m := postgres.New(pool)
+			request, cancelRequest := context.WithCancel(ctx)
+			defer cancelRequest()
+			var tx pgx.Tx
+			var runErr error
+			returned := false
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				runErr = m.Run(request, func(ctx context.Context) error {
+					stop := func(ctx context.Context) error {
+						tx = transaction(t, m, ctx)
+						if _, err := tx.Exec(ctx, `INSERT INTO item VALUES (1)`); err != nil {
+							return err
+						}
+						cancelRequest()
+						runtime.Goexit()
+						return nil
+					}
+					if nested {
+						return m.Run(ctx, stop)
+					}
+					return stop(ctx)
+				})
+				returned = true
+			}()
+			select {
+			case <-done:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			// Release a leaked transaction even on the broken implementation, so a
+			// regression fails here instead of hanging in pool.Close during cleanup.
+			if acquired := pool.Stat().AcquiredConns(); acquired != 0 {
+				cleanup, stopCleanup := context.WithTimeout(context.Background(), 5*time.Second)
+				if tx != nil {
+					_ = tx.Rollback(cleanup)
+				}
+				stopCleanup()
+				t.Fatalf("Goexit left %d acquired connection(s)", acquired)
+			}
+			if returned {
+				t.Fatalf("Run returned instead of preserving Goexit: %v", runErr)
+			}
+			var count int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM item`).Scan(&count); err != nil {
+				t.Fatalf("pool unusable after Goexit: %v", err)
+			}
+			if count != 0 {
+				t.Fatalf("Goexit persisted %d row(s)", count)
+			}
+		})
 	}
 }

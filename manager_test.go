@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -232,6 +233,60 @@ func TestManagerPanicRollsBackAndRepanics(t *testing.T) {
 	}()
 	if tx.commits != 0 || tx.rollbacks != 1 {
 		t.Fatalf("commits=%d rollbacks=%d", tx.commits, tx.rollbacks)
+	}
+}
+
+func TestManagerGoexitRollsBack(t *testing.T) {
+	for _, nested := range []bool{false, true} {
+		for _, rollbackFails := range []bool{false, true} {
+			t.Run(fmt.Sprintf("nested=%v/rollbackFails=%v", nested, rollbackFails), func(t *testing.T) {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				tx := &managerFakeTx{}
+				if rollbackFails {
+					tx.rollbackErr = &pgconn.PgError{Code: "23503", ConstraintName: "category_fk"}
+				}
+				tx.onRollback = func(cleanup context.Context) {
+					if cleanup.Err() != nil {
+						t.Errorf("Goexit cleanup already canceled: %v", cleanup.Err())
+					}
+					deadline, ok := cleanup.Deadline()
+					if !ok || time.Until(deadline) <= 0 || time.Until(deadline) > 6*time.Second {
+						t.Errorf("cleanup deadline=%v exists=%v", deadline, ok)
+					}
+				}
+				pool := &managerFakeBeginner{tx: tx}
+				m := New(pool)
+				mapped, returned := false, false
+				done := make(chan struct{})
+				go func() {
+					defer close(done)
+					_ = m.RunMapped(ctx, pgx.TxOptions{}, func(error) error {
+						mapped = true
+						return nil
+					}, func(ctx context.Context) error {
+						stop := func(context.Context) error {
+							cancel()
+							runtime.Goexit()
+							return nil
+						}
+						if nested {
+							return m.Run(ctx, stop)
+						}
+						return stop(ctx)
+					})
+					returned = true
+				}()
+				select {
+				case <-done:
+				case <-time.After(10 * time.Second):
+					t.Fatal("Goexit cleanup did not finish")
+				}
+				if pool.calls != 1 || tx.commits != 0 || tx.rollbacks != 1 || mapped || returned {
+					t.Fatalf("begins=%d commits=%d rollbacks=%d mapped=%v returned=%v", pool.calls, tx.commits, tx.rollbacks, mapped, returned)
+				}
+			})
+		}
 	}
 }
 

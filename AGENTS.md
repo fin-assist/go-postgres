@@ -91,7 +91,8 @@ The same priorities and rules as the services (`AGENTS.md` of `fin-assist/go-ser
   package-level mutable variables, no reading the environment; `forbidigo` rejects `slog.Default`, `log.Print*`,
   `prometheus.MustRegister`, `promauto` and `os.Getenv` outside tests.
 - **The service selects transaction boundaries.** go-postgres opens and completes only the transaction
-  it creates for an outer Run; nested Run joins it. RunMapped accepts one mapper for the entire outer
+  it creates for an outer Run; nested Run joins it. An unfinished transaction is rolled back on error,
+  panic or runtime.Goexit, even after request cancellation. RunMapped accepts one mapper for the entire outer
   operation, never a global or per-statement registry. Other libraries obey: A library that writes together with the effect (idempotency, outbox,
   tombstone) takes it through a consumer interface — `interface{ Tx(context.Context) (pgx.Tx, bool) }`, implemented
   by `postgres.DB` of the service template — and returns an error when there is none, instead of writing outside it.

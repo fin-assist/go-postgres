@@ -58,7 +58,7 @@ func (m *Manager) Tx(ctx context.Context) (pgx.Tx, bool) {
 	return state.tx, true
 }
 
-// Run commits when fn succeeds and rolls back on error or panic. A nested Run joins
+// Run commits when fn succeeds and rolls back on error, panic or runtime.Goexit. A nested Run joins
 // the same manager's outer transaction without committing it or creating a savepoint.
 // It returns ErrForeignTransaction for another manager's transaction context.
 // Callbacks must propagate nested errors and must not call remote services.
@@ -95,6 +95,7 @@ func (m *Manager) run(ctx context.Context, opts pgx.TxOptions, mapper ErrorMappe
 	if err != nil {
 		return fmt.Errorf("begin: %w", err)
 	}
+	committed := false
 	defer func() {
 		// Cleanup must reach PostgreSQL after request cancellation, but is bounded.
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -103,7 +104,8 @@ func (m *Manager) run(ctx context.Context, opts pgx.TxOptions, mapper ErrorMappe
 			_ = tx.Rollback(cleanupCtx)
 			panic(p)
 		}
-		if err != nil {
+		// Goexit runs defers without a panic or an assignment to err.
+		if !committed {
 			if rbErr := tx.Rollback(cleanupCtx); rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
 				err = errors.Join(err, fmt.Errorf("rollback: %w", rbErr))
 				return
@@ -117,5 +119,6 @@ func (m *Manager) run(ctx context.Context, opts pgx.TxOptions, mapper ErrorMappe
 	if err = tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
+	committed = true
 	return nil
 }
