@@ -17,7 +17,7 @@ class EntrypointTests(unittest.TestCase):
     def test_disabled_without_credentials_or_repository_files_is_a_noop(self):
         script = Path(renovate_policy.__file__).resolve()
         with tempfile.TemporaryDirectory() as directory:
-            for enabled in (None, '', 'false', 'TRUE', '1'):
+            for enabled in (None, '', 'false', 'TRUE', 'True', '1'):
                 with self.subTest(enabled=enabled):
                     env = {} if enabled is None else {'RENOVATE_POLICY_ENABLED': enabled}
                     result = subprocess.run([sys.executable, str(script)], cwd=directory,

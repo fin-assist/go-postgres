@@ -13,9 +13,32 @@ concurrency:
   group: renovate-policy-controller
   cancel-in-progress: false
 jobs:
+  gate:
+    if: github.ref == 'refs/heads/main'
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      enabled: ${{ steps.activation.outputs.enabled }}
+    steps:
+      - name: Check exact activation value
+        id: activation
+        env:
+          RENOVATE_POLICY_ENABLED: ${{ vars.RENOVATE_POLICY_ENABLED }}
+        shell: bash
+        # Actions string equality ignores case. Shell equality keeps TRUE/True
+        # outside the privileged environment; only canonical outputs leave here.
+        run: |
+          if [ "$RENOVATE_POLICY_ENABLED" = true ]; then
+            printf 'enabled=true\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'enabled=false\n' >> "$GITHUB_OUTPUT"
+          fi
+
   reconcile:
-    # Skip before entering the privileged environment or resolving its secrets.
-    if: github.ref == 'refs/heads/main' && vars.RENOVATE_POLICY_ENABLED == 'true'
+    needs: gate
+    # The unprivileged gate emits only literal true/false, never the raw variable.
+    if: github.ref == 'refs/heads/main' && needs.gate.outputs.enabled == 'true'
     environment: renovate-policy
     runs-on: ubuntu-latest
     timeout-minutes: 10
