@@ -86,6 +86,9 @@ The same priorities and rules as the services (`AGENTS.md` of `fin-assist/go-ser
 - Code, comments, identifiers, commit messages — English. `docs/*.md`, `README.md`, `CHANGELOG.md`, PR title and
   description — Russian. A doc comment on every exported identifier, saying what the caller must guarantee
   (inside a transaction, on the primary, after the identity interceptor) and which errors come back.
+- Every library PR adds a Russian entry to `CHANGELOG.md` under `[Unreleased]` in that same PR, including
+  documentation, tests and CI changes. Include its FIN key when there is one; internal changes must not claim a
+  runtime or API change. A release PR moves the accumulated entries into the version section (`docs/releasing.md`).
 - **No process-wide state.** The service passes everything in: `*slog.Logger`, `prometheus.Registerer`, the clock
   (`func() time.Time`), settings in an options struct with documented defaults. No `init()` with side effects, no
   package-level mutable variables, no reading the environment; `forbidigo` rejects `slog.Default`, `log.Print*`,
@@ -233,7 +236,7 @@ updates the library.
   mandatory rules, then performance; a performance finding needs a measurement or an evident cost, not a guess.
 - Post each finding as an inline comment on the changed line. The summary lists what was checked, with a
   «Безопасность», a «Тесты» and a «Совместимость» part; «not affected» is a valid answer, with one line why.
-- Check that the PR references its YouTrack issue, adds its `CHANGELOG.md` line when it changes API or behaviour,
+- Check that the PR references its YouTrack issue, adds its `CHANGELOG.md` line (including docs/test/CI-only PRs),
   and updates `README.md` («Внедрение»), this file and `docs/` when it changes what they describe.
 
 ### Security
@@ -294,7 +297,7 @@ identifier, behaviour, migration and dependency check:
 ### Checklist
 
 - New code has unit tests; new functionality has integration tests; entry points have usage tests and examples.
-- API or behaviour changed — a `CHANGELOG.md` line; incompatible — under «Несовместимо», and the PR says so.
+- Every PR has a `CHANGELOG.md` line; incompatible changes go under «Несовместимо», and the PR says so.
 - A new client-facing error goes through `finerr`; a new reason or metadata key exists in `contracts` first.
 - A new query by a key is scoped by its owner and has a test with another owner's key.
 - A write that goes with an effect uses the service's transaction and fails without one.

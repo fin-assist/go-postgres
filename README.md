@@ -4,7 +4,7 @@
 
 ## Внедрение
 
-1. Подключить опубликованную версию: `go get github.com/fin-assist/go-postgres@v0.1.1`. Теги следующих версий ставит владелец после мержа release PR; наличие секции в CHANGELOG ещё не означает публикацию версии.
+1. Подключить опубликованную версию: `go get github.com/fin-assist/go-postgres@v0.1.2`. Теги следующих версий ставит владелец после мержа release PR; наличие секции в CHANGELOG ещё не означает публикацию версии.
 2. Создать **один** `postgres.New(pool)` на основной `*pgxpool.Pool`. Пул открывает и закрывает сервис.
 3. Передавать менеджер репозиториям; внутри `Run` брать `manager.Tx(ctx)`. Он реализует `interface { Tx(context.Context) (pgx.Tx, bool) }` для idempotency/outbox. Библиотеки не завершают полученную транзакцию.
 4. Usecase объявляет свой интерфейс `Run(context.Context, func(context.Context) error) error`. Для операции с ожидаемыми нарушениями адаптер реализует его через `RunMapped`, задавая обработчик **всей операции**.
@@ -54,6 +54,6 @@ make cover
 
 Без `TEST_DATABASE_URL` используется PostgreSQL 18 в testcontainers. Отсутствие PostgreSQL в CI — ошибка, локально — skip, который не считается проверкой. Интеграционные тесты проверяют реальные FK/UNIQUE, отложенный COMMIT, исправление ссылки до COMMIT, вложенный откат, panic и независимые конкурентные транзакции. Usage-пример с переводом в `finerr.NOT_FOUND` тестируется в шаблоне сервиса.
 
-CI и скрипты взяты из шаблона: tidy, vet, race, lint, CHANGELOG, анализ API и покрытие изменённых строк (цель 80%). [CHANGELOG.md](CHANGELOG.md), [docs/releasing.md](docs/releasing.md), [AGENTS.md](AGENTS.md). Своих метрик, фоновых заданий и миграций нет. Опубликован [v0.1.1](https://github.com/fin-assist/go-postgres/releases/tag/v0.1.1); повторная проверка существующего выпуска описана в [инструкции](docs/releasing.md#выпуск). Теги агент не ставит.
+CI и скрипты взяты из шаблона: tidy, vet, race, lint, CHANGELOG, анализ API и покрытие изменённых строк (цель 80%). [CHANGELOG.md](CHANGELOG.md), [docs/releasing.md](docs/releasing.md), [AGENTS.md](AGENTS.md). Своих метрик, фоновых заданий и миграций нет. Опубликован [v0.1.2](https://github.com/fin-assist/go-postgres/releases/tag/v0.1.2); tag-workflow упал из-за отсутствия секции версии в CHANGELOG коммита тега. История этого сбоя и порядок следующих выпусков описаны в [инструкции](docs/releasing.md#история-go-postgres-v012-fin-242). Теги агент не ставит.
 
 Bootstrap и активация контроллера Renovate выполнены в [FIN-237](https://finassist.youtrack.cloud/issue/FIN-237); текущее включение задаёт repository variable `RENOVATE_POLICY_ENABLED`. Настройка — [docs/renovate-policy.md](docs/renovate-policy.md). Workflow Claude уже в `main`; ревью последующих PR запрашивается по [AGENTS.md](AGENTS.md#workflow).
