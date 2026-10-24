@@ -535,13 +535,15 @@ class AndroidCatalogAdapterTests(unittest.TestCase):
                 merged=any(path=='pulls/1/merge' for path,_ in api.actions)
                 self.assertEqual(merged,not stack_changed)
 
-class ConfigurationOnlyTests(unittest.TestCase):
-    def test_disabled_pr_mutations_still_sync_baseline_and_single_target(self):
+class ConfigurationSyncTests(unittest.TestCase):
+    def test_enabled_controller_syncs_baseline_and_single_target_without_open_prs(self):
         class ConfigFake(Fake):
             def sync_baseline(self,base):self.synced=base
-            def pages(self,*args,**kwargs):raise AssertionError('PRs must not be evaluated in sync-only mode')
+            def pages(self,path,key=None):
+                if path=='pulls?state=open':return []
+                return super().pages(path,key)
         api=ConfigFake();api.target='release/0.2.12'
-        reconcile(api,api.config,mutate_prs=False)
+        reconcile(api,api.config)
         self.assertEqual(api.synced,'release/0.2.12')
         self.assertEqual(api.policy['baseBranchPatterns'],['release/0.2.12'])
         self.assertEqual([action[0] for action in api.actions],['policy'])

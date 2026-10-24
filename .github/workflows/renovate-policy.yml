@@ -14,7 +14,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   reconcile:
-    if: github.ref == 'refs/heads/main'
+    # Skip before entering the privileged environment or resolving its secrets.
+    if: github.ref == 'refs/heads/main' && vars.RENOVATE_POLICY_ENABLED == 'true'
     environment: renovate-policy
     runs-on: ubuntu-latest
     timeout-minutes: 10
