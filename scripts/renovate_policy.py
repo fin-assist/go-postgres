@@ -547,7 +547,7 @@ def explain_spent_retry(api, config, number, key, receipt, body):
     api.write_receipts(latest, latest_sha)
 
 
-def reconcile(api, config, trigger=None, mutate_prs=True):
+def reconcile(api, config, trigger=None):
     if api.identity() != config['controllerLogin']:
         raise ValueError('Mutation credential identity differs from controllerLogin; no retry claim is allowed')
     api.controller_login = config['controllerLogin']
@@ -562,9 +562,6 @@ def reconcile(api, config, trigger=None, mutate_prs=True):
         policy['baseBranchPatterns'] = [base]
         api.write_policy(policy, policy_sha)
         policy, policy_sha = api.read_policy()
-    if not mutate_prs:
-        print('Renovate PR mutations disabled; configuration synchronized')
-        return
     failures = []
     for candidate in api.pages('pulls?state=open'):
         try:
@@ -757,13 +754,18 @@ def main():
             raise ValueError('RENOVATE_POLICY_TOKEN is required')
         GitHub(token, os.environ['GITHUB_REPOSITORY']).bootstrap()
         return
+    # A repository copied from the template needs no credential or infrastructure
+    # until the owner explicitly activates it. Disabled means no API calls at all.
+    if os.environ.get('RENOVATE_POLICY_ENABLED') != 'true':
+        print('Renovate policy disabled; no API requests or mutations')
+        return
     token = os.environ.get('RENOVATE_POLICY_TOKEN')
     if not token:
         raise ValueError('RENOVATE_POLICY_TOKEN is required; GITHUB_TOKEN is not a merge credential')
     config = json.loads(Path('.github/renovate-policy.json').read_text())
     event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
     trigger = event.get('workflow_run') if os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run' else None
-    reconcile(GitHub(token, os.environ['GITHUB_REPOSITORY'], os.environ.get('GITHUB_READ_TOKEN')), config, trigger, mutate_prs=os.environ.get('RENOVATE_POLICY_ENABLED') == 'true')
+    reconcile(GitHub(token, os.environ['GITHUB_REPOSITORY'], os.environ.get('GITHUB_READ_TOKEN')), config, trigger)
 
 
 if __name__ == '__main__':
