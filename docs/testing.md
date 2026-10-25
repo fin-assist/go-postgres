@@ -23,3 +23,14 @@ CI сохраняет unit/integration/API/combined reports, native breakdowns, 
 ## Контракт go-postgres
 
 Публичные consumer-сценарии проверяют совместную запись двух репозиториев в одной транзакции, вложенные опции и принадлежность транзакции, общий commit/rollback на ошибке/panic/cancel/Goexit, отказ другому manager и вложенному mapper без эффектов, перевод настоящего deferred FK только после COMMIT без raw SQL detail, закрытый pool до вызова callback. Все используют PostgreSQL18 и экспортируемые New/Tx/Run/RunWith/RunMapped/IsViolation. Unit отдельно проверяет declared Beginner/pgx.Tx контракты, ошибки BEGIN/COMMIT/ROLLBACK и mapper без сети.
+
+FIN-253 добавляет OpenPools/Pools без изменения Manager. Unit проверяет управление
+жизненным циклом через маленький managedPool, все ветви частичного startup и
+одновременный Close; lazy pgxpool config проверяется без Ping/Acquire и сети.
+Integration использует PG18 и проверяет lazy replica, обязательный primary,
+cancel/deadline/отказ startup и безопасные ошибки. API-потребитель открывает настоящие
+пулы, связывает New(primary) с транзакцией, проверяет application_name, MaxConns,
+same/distinct replica и освобождение после транзакции, затем закрывает только владельца.
+Отдельно проверяется последующий успешный restart после неудачного подключения.
+Секретные маркеры не должны попадать в текст или cause цепочку новых connection errors.
+Каждый из трёх уровней по-прежнему измеряет весь одинаковый production-модуль.

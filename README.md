@@ -1,6 +1,6 @@
 # go-postgres
 
-Общие транзакции pgx v5 и обработка ожидаемых нарушений ограничений PostgreSQL для сервисов «Понятные финансы» ([FIN-195](https://finassist.youtrack.cloud/issue/FIN-195)). Основа — `go-library-template`. Библиотека не создаёт таблиц, не управляет пулами и не знает доменных ошибок или `finerr`.
+Общие транзакции pgx v5 и обработка ожидаемых нарушений ограничений PostgreSQL для сервисов «Понятные финансы» ([FIN-195](https://finassist.youtrack.cloud/issue/FIN-195)). Основа — `go-library-template`. FIN-253 добавляет отдельный lifecycle primary/replica pools через `OpenPools`; прежний `New(pool)` оставляет переданный пул во владении вызывающего. Библиотека не создаёт таблиц и не знает доменных ошибок или `finerr`.
 
 ## Внедрение
 
@@ -9,6 +9,53 @@
 3. Передавать менеджер репозиториям; внутри `Run` брать `manager.Tx(ctx)`. Он реализует `interface { Tx(context.Context) (pgx.Tx, bool) }` для idempotency/outbox. Библиотеки не завершают полученную транзакцию.
 4. Usecase объявляет свой интерфейс `Run(context.Context, func(context.Context) error) error`. Для операции с ожидаемыми нарушениями адаптер реализует его через `RunMapped`, задавая обработчик **всей операции**.
 5. Usecase переводит полученную доменную ошибку в `finerr` по контракту метода. pgx, SQLSTATE и имена ограничений остаются в адаптере.
+
+### Пулы, создаваемые библиотекой (FIN-253)
+
+Новый API готовится к отдельному выпуску; опубликованный `v0.1.2` его ещё не содержит.
+Сервис может передать существующий caller-owned pool в `New`, как раньше, либо
+явно поручить библиотеке создать и закрыть собственные пулы:
+
+```go
+pools, err := postgres.OpenPools(ctx, postgres.PoolOptions{
+    PrimaryDSN: cfg.PrimaryDSN,
+    ReplicaDSN: cfg.ReplicaDSN,
+    MaxConns:   cfg.MaxConns,
+    AppName:    "user",
+})
+if err != nil {
+    return err
+}
+defer pools.Close() // after listeners/jobs/transactions have stopped
+manager := postgres.New(pools.Primary())
+```
+
+Непустой `PrimaryDSN` обязателен: пустая строка не выбирает неявную БД окружения.
+Пустой или точно совпадающий с primary `ReplicaDSN` использует один пул. Иной DSN
+создаёт отдельный replica pool; как в шаблоне, startup проверяет только primary,
+а соединения с replica создаются лениво. Неограниченное ожидание replica не
+добавляется. Положительный `MaxConns` и непустой `AppName` применяются к обоим
+пулам; иначе сохраняются настройки DSN/pgxpool.
+
+`Pools.Primary()`/`Replica()` возвращают `*pgxpool.Pool` для существующих адаптеров.
+Сервис выбирает Reader/Writer, read-primary hint и собственную транзакцию через
+`manager.Tx(ctx)`. Чужая транзакция по-прежнему требует отказа, а не fallback в пул.
+Зависимости от gRPC/request context в библиотеке нет. `Pools` не создаёт второй
+Manager и не выбирает доменный mapper.
+
+Ошибка startup закрывает все уже созданные пулы. `Pools.Close()` безопасен при
+повторных/одновременных вызовах и закрывает каждый принадлежащий ему пул один раз.
+Как `pgxpool.Close`, он ждёт возврата выданных соединений: сначала остановить работу
+и завершить транзакции. Пулы нельзя отдельно закрывать через полученные указатели
+или использовать после `Close`. `New(pool)` по-прежнему не закрывает переданный пул.
+
+`OpenPools`/`Pools.Ping` возвращают безопасные ошибки, проверяемые через `errors.Is`:
+`ErrInvalidDSN`, `ErrPoolUnavailable`, `context.Canceled`, `context.DeadlineExceeded`.
+Raw driver diagnostics и DSN намеренно не включаются ни в текст, ни в цепочку ошибки;
+доступны стадия отказа и безопасная причина. Прежние transaction/mapping ошибки
+не меняются. У nil/zero `Pools` метод `Ping` возвращает `ErrPoolUnavailable`, `Close`
+ничего не делает. Методы доступа к пулам предназначены для результата успешного
+`OpenPools`.
 
 Адаптер конкретной операции (сервисные `domain` и `DB` здесь условные):
 
