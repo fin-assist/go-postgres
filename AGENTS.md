@@ -2,7 +2,8 @@
 
 go-postgres is the shared PostgreSQL transaction manager and constraint-error infrastructure of
 «Понятные финансы» (FIN-195). Services select transaction boundaries; adapters supply operation-specific
-error mappers. The library contains no domain-to-contract mapping and owns no tables or migrations.
+error mappers. FIN-253 adds explicit ownership of pools created by OpenPools; New(pool) still
+borrows caller-owned pools. The library contains no domain-to-contract mapping and owns no tables or migrations.
 It is based on go-library-template. Read README.md before changing the public API.
 
 ## Keep this file current
@@ -35,6 +36,7 @@ for itself: what it does, its YouTrack issue, which services use it.
 | Public API of the library | root package (`*.go`); subpackages only for parts with different consumers |
 | Implementation details | `internal/` |
 | Transaction API and error mapping | `manager.go`, `errors.go` (no migrations) |
+| Optional owned primary/replica pool lifecycle | `pools.go`; routing remains in service adapters |
 | PostgreSQL for tests, up → down → up check | `internal/pgtest/` (mirrors `migratetest` of the service template) |
 | Integration guide for services | `README.md`, «Внедрение» |
 | Versions, compatibility, releases, Renovate | `docs/releasing.md`, `CHANGELOG.md`, `.github/workflows/release.yml`, `renovate.json` |
@@ -100,6 +102,10 @@ The same priorities and rules as the services (`AGENTS.md` of `fin-assist/go-ser
   tombstone) takes it through a consumer interface — `interface{ Tx(context.Context) (pgx.Tx, bool) }`, implemented
   by `postgres.DB` of the service template — and returns an error when there is none, instead of writing outside it.
   It never commits or rolls back a transaction it did not open, and calls nothing over the network inside one.
+- **Pool ownership:** New(pool) never acquires ownership of a supplied pool. OpenPools creates and owns its
+  primary/replica pair, closing all partial startup resources and each pool once on Close. Stop users and return
+  acquired connections before Close. Keep explicit service-side read routing and operation mapping; do not import
+  service or gRPC context packages. Connection errors expose only documented safe causes, never raw DSN/driver text.
 - **Errors**: client-facing errors only through `finerr` constructors; `status.Error`, `status.New`,
   `errdetails.ErrorInfo` are forbidden by the linter; an internal refusal is a bare code built in one function with
   a nolint and its reason. Errors the service handles are exported sentinel values or types, checked with
