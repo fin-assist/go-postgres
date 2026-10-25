@@ -6,6 +6,10 @@
 
 - FIN-277: OpenPools и Pools.Ping возвращают context.Canceled / context.DeadlineExceeded, только когда закончился контекст вызывающего (ctx.Err()); таймаут подключения драйвера при живом контексте (connect_timeout в DSN, молчащий primary) теперь ErrPoolUnavailable, а в v0.2.0 был context.DeadlineExceeded. Сервисам: проверить обработчики errors.Is(err, context.DeadlineExceeded / context.Canceled) после OpenPools и Pools.Ping — недоступная БД с connect_timeout попадёт в ветку ErrPoolUnavailable. В шаблоне и сервисах на 25.10.2026 таких ветвлений нет (ошибка старта возвращается как есть, readiness учитывает только err != nil), правки не требуются. Текст и цепочка ошибок драйвера по-прежнему не возвращаются; API не менялся.
 
+### Изменено
+
+- FIN-320: `internal/pgtest` больше не копирует go-migrate (по FIN-310): оставлен только выбор тестового PostgreSQL (`TEST_DATABASE_URL`/testcontainers, skip локально, ошибка в CI), создание БД, правила файлов и обход up → down → up делегированы `github.com/fin-assist/go-migrate` v0.1.1. go-migrate импортируется только тестами, но как require модуля входит в граф модулей и повышает минимальную версию go-migrate у сервисов, импортирующих библиотеку (сервисы уже на v0.1.1). Исключение `internal/pgtest` из покрытия не изменилось; runtime и экспортируемый API не менялись.
+
 ## [v0.2.0] — 2026-10-25
 
 ### Добавлено
