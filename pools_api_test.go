@@ -3,9 +3,11 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"net"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	postgres "github.com/fin-assist/go-postgres"
 	"github.com/fin-assist/go-postgres/internal/pgtest"
@@ -106,5 +108,60 @@ func TestAPIPoolStartupErrorsAreSafeAndNeverReturnPartialResources(t *testing.T)
 	t.Cleanup(pools.Close)
 	if err := pools.Ping(t.Context()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// FIN-277: an unresponsive primary is "database unavailable", not the service's own
+// deadline, even though pgx reports its connect_timeout as context.DeadlineExceeded.
+func TestAPIUnresponsivePrimaryIsUnavailableNotCallerTimeout(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	accepted := make(chan net.Conn, 16)
+	go func() {
+		for {
+			c, err := lis.Accept()
+			if err != nil {
+				close(accepted)
+				return
+			}
+			accepted <- c
+		}
+	}()
+	t.Cleanup(func() {
+		_ = lis.Close()
+		for c := range accepted {
+			_ = c.Close()
+		}
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+	pools, err := postgres.OpenPools(ctx, postgres.PoolOptions{
+		PrimaryDSN: "postgres://user:never-return-this@" + lis.Addr().String() + "/db?sslmode=disable&connect_timeout=1",
+	})
+	if pools != nil {
+		pools.Close()
+		t.Fatal("startup against an unresponsive primary returned pools")
+	}
+	if !errors.Is(err, postgres.ErrPoolUnavailable) || errors.Is(err, context.DeadlineExceeded) ||
+		ctx.Err() != nil || strings.Contains(err.Error(), "never-return-this") {
+		t.Fatalf("unresponsive primary misclassified: %v", err)
+	}
+
+	// Without connect_timeout (pgx default) the service's own startup deadline expires
+	// mid-connect: that is the caller's timeout, not "database unavailable".
+	short, stop := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer stop()
+	pools, err = postgres.OpenPools(short, postgres.PoolOptions{
+		PrimaryDSN: "postgres://user:never-return-this@" + lis.Addr().String() + "/db?sslmode=disable",
+	})
+	if pools != nil {
+		pools.Close()
+		t.Fatal("startup past the caller's deadline returned pools")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) || errors.Is(err, postgres.ErrPoolUnavailable) ||
+		strings.Contains(err.Error(), "never-return-this") {
+		t.Fatalf("caller deadline during connect misclassified: %v", err)
 	}
 }

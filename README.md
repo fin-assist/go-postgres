@@ -51,6 +51,9 @@ Manager и не выбирает доменный mapper.
 
 `OpenPools`/`Pools.Ping` возвращают безопасные ошибки, проверяемые через `errors.Is`:
 `ErrInvalidDSN`, `ErrPoolUnavailable`, `context.Canceled`, `context.DeadlineExceeded`.
+Причины `context.*` берутся из контекста вызывающего (`ctx.Err()`), а не из цепочки
+драйвера: таймаут подключения pgx (`connect_timeout`, молчащий primary) при живом
+контексте — это `ErrPoolUnavailable` (FIN-277).
 Raw driver diagnostics и DSN намеренно не включаются ни в текст, ни в цепочку ошибки;
 доступны стадия отказа и безопасная причина. Прежние transaction/mapping ошибки
 не меняются. У nil/zero `Pools` метод `Ping` возвращает `ErrPoolUnavailable`, `Close`
