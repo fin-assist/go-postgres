@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -43,11 +44,11 @@ func silentServer(t *testing.T) string {
 			_ = c.Close()
 		}
 	})
-	return "postgres://user:never-return-this@" + lis.Addr().String() + "/db?sslmode=disable&connect_timeout=1"
+	return "postgres://user:never-return-this@" + lis.Addr().String() + "/db?sslmode=disable"
 }
 
 func TestIntegrationPoolsPingClassifiesDriverTimeoutByCallerContext(t *testing.T) {
-	pool, err := newManagedPool(t.Context(), silentServer(t), PoolOptions{})
+	pool, err := newManagedPool(t.Context(), silentServer(t)+"&connect_timeout=1", PoolOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,5 +62,29 @@ func TestIntegrationPoolsPingClassifiesDriverTimeoutByCallerContext(t *testing.T
 	cancel()
 	if err := p.Ping(ctx); !errors.Is(err, context.Canceled) || errors.Is(err, ErrPoolUnavailable) {
 		t.Fatalf("canceled caller: %v", err)
+	}
+}
+
+// Readiness probes usually have no connect_timeout in the DSN (pgx default: none) and a
+// short caller deadline. The deadline expires while pgx is still connecting: that is
+// the caller's own timeout, and Close must not wait for the abandoned connect.
+func TestIntegrationPoolsPingCallerDeadlineDuringConnect(t *testing.T) {
+	pool, err := newManagedPool(t.Context(), silentServer(t), PoolOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &Pools{primary: pool.(*pgxpool.Pool), replica: pool.(*pgxpool.Pool), lifecycle: &poolPair{primary: pool, replica: pool}}
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	err = p.Ping(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) || errors.Is(err, ErrPoolUnavailable) || strings.Contains(err.Error(), "never-return-this") {
+		t.Fatalf("caller deadline during connect: %v", err)
+	}
+	closed := make(chan struct{})
+	go func() { p.Close(); close(closed) }()
+	select {
+	case <-closed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Close waited for an abandoned connect to a silent primary")
 	}
 }

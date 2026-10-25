@@ -36,4 +36,7 @@ same/distinct replica и освобождение после транзакци�
 FIN-277: unit, integration и API проверяют, что таймаут подключения драйвера при живом
 контексте вызывающего (молчащий TCP-сервер с `connect_timeout=1`) классифицируется как
 ErrPoolUnavailable, а context.Canceled/DeadlineExceeded — только при завершённом ctx.
+Отдельно проверяется дедлайн вызывающего, истекающий во время подключения без
+`connect_timeout` (Pools.Ping и OpenPools): причина — context.DeadlineExceeded, Close не
+ждёт брошенного подключения.
 Каждый из трёх уровней по-прежнему измеряет весь одинаковый production-модуль.

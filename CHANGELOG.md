@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### Исправлено
+### Несовместимо
 
-- FIN-277: OpenPools и Pools.Ping возвращают context.Canceled / context.DeadlineExceeded, только когда закончился контекст вызывающего; таймаут подключения драйвера (connect_timeout, молчащий primary) при живом контексте — ErrPoolUnavailable, как описано в контракте. Текст и цепочка ошибок драйвера по-прежнему не возвращаются.
+- FIN-277: OpenPools и Pools.Ping возвращают context.Canceled / context.DeadlineExceeded, только когда закончился контекст вызывающего (ctx.Err()); таймаут подключения драйвера при живом контексте (connect_timeout в DSN, молчащий primary) теперь ErrPoolUnavailable, а в v0.2.0 был context.DeadlineExceeded. Сервисам: проверить обработчики errors.Is(err, context.DeadlineExceeded / context.Canceled) после OpenPools и Pools.Ping — недоступная БД с connect_timeout попадёт в ветку ErrPoolUnavailable. В шаблоне и сервисах на 25.10.2026 таких ветвлений нет (ошибка старта возвращается как есть, readiness учитывает только err != nil), правки не требуются. Текст и цепочка ошибок драйвера по-прежнему не возвращаются; API не менялся.
 
 ## [v0.2.0] — 2026-10-25
 

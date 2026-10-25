@@ -148,4 +148,20 @@ func TestAPIUnresponsivePrimaryIsUnavailableNotCallerTimeout(t *testing.T) {
 		ctx.Err() != nil || strings.Contains(err.Error(), "never-return-this") {
 		t.Fatalf("unresponsive primary misclassified: %v", err)
 	}
+
+	// Without connect_timeout (pgx default) the service's own startup deadline expires
+	// mid-connect: that is the caller's timeout, not "database unavailable".
+	short, stop := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer stop()
+	pools, err = postgres.OpenPools(short, postgres.PoolOptions{
+		PrimaryDSN: "postgres://user:never-return-this@" + lis.Addr().String() + "/db?sslmode=disable",
+	})
+	if pools != nil {
+		pools.Close()
+		t.Fatal("startup past the caller's deadline returned pools")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) || errors.Is(err, postgres.ErrPoolUnavailable) ||
+		strings.Contains(err.Error(), "never-return-this") {
+		t.Fatalf("caller deadline during connect misclassified: %v", err)
+	}
 }
