@@ -45,8 +45,10 @@ type Pools struct {
 // it closes every pool it created. It never acquires ownership of a caller-supplied pool:
 // New(pool) continues to leave pool ownership with its caller.
 //
-// Errors wrap ErrInvalidDSN, ErrPoolUnavailable, context.Canceled or
-// context.DeadlineExceeded. Raw driver errors and DSNs are not returned.
+// Errors wrap ErrInvalidDSN, ErrPoolUnavailable, or ctx.Err() (context.Canceled or
+// context.DeadlineExceeded) when ctx itself ended. A driver timeout such as
+// connect_timeout with a live ctx is ErrPoolUnavailable. Raw driver errors and DSNs
+// are not returned.
 func OpenPools(ctx context.Context, options PoolOptions) (*Pools, error) {
 	pair, err := openPoolPair(ctx, options, newManagedPool)
 	if err != nil {
@@ -64,12 +66,14 @@ func (p *Pools) Primary() *pgxpool.Pool { return p.primary }
 func (p *Pools) Replica() *pgxpool.Pool { return p.replica }
 
 // Ping checks the primary without exposing driver diagnostics or connection secrets.
+// It returns context.Canceled or context.DeadlineExceeded only when ctx itself ended;
+// a driver connect timeout with a live ctx is ErrPoolUnavailable.
 func (p *Pools) Ping(ctx context.Context) error {
 	if p == nil || p.primary == nil {
 		return ErrPoolUnavailable
 	}
 	if err := p.primary.Ping(ctx); err != nil {
-		return poolFailure("primary ping", err)
+		return poolFailure(ctx, "primary ping", err)
 	}
 	return nil
 }
@@ -105,20 +109,20 @@ func (p *poolPair) close() {
 func openPoolPair(ctx context.Context, options PoolOptions, open func(context.Context, string, PoolOptions) (managedPool, error)) (*poolPair, error) {
 	primary, err := open(ctx, options.PrimaryDSN, options)
 	if err != nil {
-		return nil, poolFailure("primary pool", err)
+		return nil, poolFailure(ctx, "primary pool", err)
 	}
 	pair := &poolPair{primary: primary, replica: primary}
 	if options.ReplicaDSN != "" && options.ReplicaDSN != options.PrimaryDSN {
 		replica, err := open(ctx, options.ReplicaDSN, options)
 		if err != nil {
 			pair.close()
-			return nil, poolFailure("replica pool", err)
+			return nil, poolFailure(ctx, "replica pool", err)
 		}
 		pair.replica, pair.distinct = replica, true
 	}
 	if err := primary.Ping(ctx); err != nil {
 		pair.close()
-		return nil, poolFailure("primary ping", err)
+		return nil, poolFailure(ctx, "primary ping", err)
 	}
 	return pair, nil
 }
@@ -140,18 +144,21 @@ func newManagedPool(ctx context.Context, dsn string, options PoolOptions) (manag
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
-		return nil, poolFailure("create pool", err)
+		return nil, poolFailure(ctx, "create pool", err)
 	}
 	return pool, nil
 }
 
-func poolFailure(operation string, cause error) error {
+// poolFailure keeps only a documented safe cause. Context errors are taken from the
+// caller's ctx, not from the driver chain: pgx implements connect_timeout with its own
+// deadline, which must not look like the caller's cancellation.
+func poolFailure(ctx context.Context, operation string, cause error) error {
 	safe := ErrPoolUnavailable
-	for _, known := range []error{ErrInvalidDSN, context.Canceled, context.DeadlineExceeded} {
-		if errors.Is(cause, known) {
-			safe = known
-			break
-		}
+	switch {
+	case errors.Is(cause, ErrInvalidDSN):
+		safe = ErrInvalidDSN
+	case ctx.Err() != nil:
+		safe = ctx.Err()
 	}
 	return fmt.Errorf("postgres: %s: %w", operation, safe)
 }

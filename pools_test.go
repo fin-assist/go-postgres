@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -101,21 +102,62 @@ func TestUnitPoolPairFailureClosesOnlyOwnedResources(t *testing.T) {
 }
 
 func TestUnitPoolFailuresPreserveOnlySafeCauses(t *testing.T) {
-	for _, cause := range []error{ErrInvalidDSN, context.Canceled, context.DeadlineExceeded} {
+	ended := func(cause error) context.Context {
+		if errors.Is(cause, context.Canceled) {
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			return ctx
+		}
+		ctx, cancel := context.WithDeadline(t.Context(), time.Unix(0, 0))
+		t.Cleanup(cancel)
+		return ctx
+	}
+	for _, tc := range []struct {
+		name        string
+		callerEnded bool
+		driver      error
+		want        error
+	}{
+		{"invalid DSN", false, ErrInvalidDSN, ErrInvalidDSN},
+		// pgx implements connect_timeout with its own deadline: the caller did not time out.
+		{"driver deadline with live caller", false, context.DeadlineExceeded, ErrPoolUnavailable},
+		{"driver cancellation with live caller", false, context.Canceled, ErrPoolUnavailable},
+		{"caller canceled", true, context.Canceled, context.Canceled},
+		{"caller deadline", true, context.DeadlineExceeded, context.DeadlineExceeded},
+		{"caller ended, opaque driver error", true, errors.New("driver: password=secret"), nil},
+	} {
 		for _, stage := range []string{"create", "ping"} {
-			t.Run(cause.Error()+"/"+stage, func(t *testing.T) {
+			t.Run(tc.name+"/"+stage, func(t *testing.T) {
+				ctx := t.Context()
+				want := tc.want
+				if tc.callerEnded {
+					cause := tc.want
+					if cause == nil {
+						cause = context.Canceled
+					}
+					ctx = ended(cause)
+					want = ctx.Err()
+				}
 				primary := &poolFake{}
 				if stage == "ping" {
-					primary.pingErr = cause
+					primary.pingErr = tc.driver
 				}
-				_, err := openPoolPair(t.Context(), PoolOptions{}, func(context.Context, string, PoolOptions) (managedPool, error) {
+				_, err := openPoolPair(ctx, PoolOptions{PrimaryDSN: "primary"}, func(context.Context, string, PoolOptions) (managedPool, error) {
 					if stage == "create" {
-						return nil, cause
+						return nil, tc.driver
 					}
 					return primary, nil
 				})
-				if !errors.Is(err, cause) {
-					t.Fatalf("safe cause lost: %v", err)
+				if !errors.Is(err, want) {
+					t.Fatalf("safe cause: got %v, want %v", err, want)
+				}
+				for _, other := range []error{ErrInvalidDSN, ErrPoolUnavailable, context.Canceled, context.DeadlineExceeded} {
+					if !errors.Is(want, other) && errors.Is(err, other) {
+						t.Fatalf("error %v also reports %v", err, other)
+					}
+				}
+				if strings.Contains(err.Error(), "secret") {
+					t.Fatal("driver diagnostics leaked", err)
 				}
 			})
 		}
