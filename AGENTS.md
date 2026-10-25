@@ -113,11 +113,13 @@ The same priorities and rules as the services (`AGENTS.md` of `fin-assist/go-ser
 - Database: SQL with parameters only (`$1`), table and column names are constants; tables are named
   `<library>_<name>` so they never collide with a service's. Migrations follow `docs/migrations.md` of the service
   template; a released migration never changes (`docs/releasing.md`, «Миграции»).
-- **SQL construction:** use [Squirrel](https://github.com/Masterminds/squirrel)
-  (`github.com/Masterminds/squirrel`) instead of assembling SQL by concatenating Go strings wherever the builder
-  supports the query. This is an approved exception to "standard library first". Pass values as query arguments,
-  use `PlaceholderFormat(sq.Dollar)` for PostgreSQL, and keep table and column names constant. If the builder
-  cannot express the query, explain the limitation next to the manual SQL construction and keep it parameterized.
+- **SQL construction:** write fixed-structure queries as plain SQL with parameters (`$1`, `$2`, … for
+  PostgreSQL). Use [Squirrel](https://github.com/Masterminds/squirrel) (`github.com/Masterminds/squirrel`) only
+  when assembling a query dynamically, such as optional predicates or varying column lists. Changing argument
+  values alone does not make a query dynamic. This limited use is an approved exception to "standard library
+  first". Parameterize values; keep identifiers and structural fragments constant or from an explicit allowlist.
+  Use `PlaceholderFormat(sq.Dollar)` for PostgreSQL builders. If a dynamic query cannot be expressed by the
+  builder, explain the limitation beside its manual construction and preserve parameterization.
 - No validation or logic in the schema (FIN-194, «Что можно в схеме» in the service template's `docs/migrations.md`):
   allowed are `PRIMARY KEY`, `UNIQUE`, `FOREIGN KEY` with any `ON DELETE` / `ON UPDATE` action (`SET DEFAULT`
   included), `NOT NULL`, `DEFAULT`, indexes (unique, partial and expression ones included) and generated columns
