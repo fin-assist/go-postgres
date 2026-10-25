@@ -12,7 +12,7 @@ TestUnit/TestIntegration/TestAPI и FuzzUnit/FuzzIntegration/FuzzAPI задаю�
 
 `make collect-{unit,integration,api}` собирает отдельные JSONL и профили Go statements с race/count1/timeout. `make check-{unit,integration,api}` сначала проверяет execution evidence и профиль, затем запускает go-test-coverage/v2 v2.20.1 с total80. Принимается штатное округление79,95→80,0. `make cover` требует все три порога. `make cover-combined` объединяет исходные профили штатным comma-входом; результат информационный.
 
-Для всех трёх профилей инструментируется одинаковый весь `./...`, включая generated и обычные `.go` helpers. Исключений ради порога нет; решение об `internal/pgtest` отдельно ожидается от владельца. Сравнивать старые уникальные строки FIN-210 с новой statements-метрикой нельзя. Проценты/merge рассчитывает только готовый инструмент.
+Для всех трёх профилей инструментируется одинаковый список `go list -race ./...` за исключением только точного пакета `<module>/internal/pgtest` (решение владельца 25.10.2026). Тесты выполняются по всему `./...`, включая pgtest. Generated production code и остальные обычные `.go` helpers учитываются, одноимённые соседние и вложенные пакеты не исключаются. Сравнивать старые уникальные строки FIN-210 с новой statements-метрикой нельзя. Проценты/merge рассчитывает только готовый инструмент.
 
 Guard требует реально выполненный passing Test/Example/Fuzz event, отсутствие skipped/failed тестов и исполняемый statement block. Package skip при отсутствии тестов допустим; Test skip — нет. Пустой, отсутствующий, header-only и zero-statement профиль не даёт зелёный статус. PostgreSQL без Docker/TEST_DATABASE_URL при CI=true — ошибка. Каждый агентский запуск также ограничивается process timeout.
 

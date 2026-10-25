@@ -177,7 +177,9 @@ on PRs the migration checks (existing files unchanged, squawk on new ones). Run 
 
 Unit, integration and public API each require total >=80% Go statements independently, using
 pinned go-test-coverage/v2 v2.20.1 and its owner-approved 79.95% rounding. Every suite instruments
-all ./..., including ordinary .go test helpers and generated production code, with no exclusions.
+the same packages from go list -race ./..., excluding only the exact module/internal/pgtest package
+(owner decision 2026-10-25). All tests still run over ./..., including pgtest tests; other ordinary
+.go helpers and generated production code remain instrumented.
 Combined uses the tool's native comma-profile union and never compensates for a failed level.
 
 Name tests TestUnit..., TestIntegration... or TestAPI... and fuzz targets FuzzUnit...,
@@ -200,8 +202,9 @@ make api with process timeouts; no UI tests or version tags are part of this cha
 
 A scaffold with no executable public implementation or a deficit is an unmet criterion, not a
 passing empty library. Current measurements and remaining gaps belong in the PR and docs/testing.md.
-The owner is considering whether internal/pgtest should remain in the library denominator;
-until an explicit decision, it remains included identically in all three levels.
+Only the exact internal/pgtest package is excluded from all three instrumentation lists.
+A similarly named package or a nested package is not excluded. No executable production statements
+means the existing profile guard fails; an empty scaffold never passes as 100%.
 
 ## Workflow
 
