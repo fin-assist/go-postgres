@@ -54,6 +54,16 @@ make cover
 
 Без `TEST_DATABASE_URL` используется PostgreSQL 18 в testcontainers. Отсутствие PostgreSQL в CI — ошибка, локально — skip, который не считается проверкой. Интеграционные тесты проверяют реальные FK/UNIQUE, отложенный COMMIT, исправление ссылки до COMMIT, вложенный откат, panic и независимые конкурентные транзакции. Usage-пример с переводом в `finerr.NOT_FOUND` тестируется в шаблоне сервиса.
 
-CI и скрипты взяты из шаблона: tidy, vet, race, lint, CHANGELOG, анализ API и покрытие изменённых строк (цель 80%). [CHANGELOG.md](CHANGELOG.md), [docs/releasing.md](docs/releasing.md), [AGENTS.md](AGENTS.md). Своих метрик, фоновых заданий и миграций нет. Опубликован [v0.1.2](https://github.com/fin-assist/go-postgres/releases/tag/v0.1.2); tag-workflow упал из-за отсутствия секции версии в CHANGELOG коммита тега. История этого сбоя и порядок следующих выпусков описаны в [инструкции](docs/releasing.md#история-go-postgres-v012-fin-242). Теги агент не ставит.
+CI и скрипты взяты из шаблона: tidy, vet, race, lint, CHANGELOG, анализ API и независимые statements-пороги80 для unit/integration/API (FIN-243). [CHANGELOG.md](CHANGELOG.md), [docs/releasing.md](docs/releasing.md), [AGENTS.md](AGENTS.md). Своих метрик, фоновых заданий и миграций нет. Опубликован [v0.1.2](https://github.com/fin-assist/go-postgres/releases/tag/v0.1.2); tag-workflow упал из-за отсутствия секции версии в CHANGELOG коммита тега. История этого сбоя и порядок следующих выпусков описаны в [инструкции](docs/releasing.md#история-go-postgres-v012-fin-242). Теги агент не ставит.
 
 Bootstrap и активация контроллера Renovate выполнены в [FIN-237](https://finassist.youtrack.cloud/issue/FIN-237); текущее включение задаёт repository variable `RENOVATE_POLICY_ENABLED`. Настройка — [docs/renovate-policy.md](docs/renovate-policy.md). Workflow Claude уже в `main`; ревью последующих PR запрашивается по [AGENTS.md](AGENTS.md#workflow).
+
+### Покрытие FIN-243
+
+`make collect-unit`, `make collect-integration`, `make collect-api` собирают независимые профили штатным Go coverage. `make check-unit`, `make check-integration`, `make check-api` проверяют каждый профиль закреплённым go-test-coverage/v2 v2.20.1 с total80. Принимается округление79,95% до80,0%; `make cover-combined` строит дополнительное объединение штатными средствами инструмента.
+
+Все три набора выполняют `./...` и инструментируют одинаковые пакеты из `go list -race ./...`, исключая только точный пакет `<module>/internal/pgtest` по решению владельца 25.10.2026. Остальные обычные `.go` helpers и generated production code учитываются; тесты pgtest продолжают исполняться. Имена TestUnit/TestIntegration/TestAPI и FuzzUnit/FuzzIntegration/FuzzAPI проверяются race inventory до сборщика; исполняемые Example входят в API. Unit не использует БД/сеть, integration использует реальные зависимости, API проверяет публичный Go-контракт от лица потребителя. API не означает новый HTTP/gRPC сервис.
+
+Пустые/пропущенные/упавшие наборы и отсутствующие/пустые/zero-statement профили не проходят guard; недоступный PostgreSQL при CI=true — ошибка. Обязательный job `go` падает при любой ошибке одного из трёх уровней, даже если combined выше80. Отчёты и профили сохраняются в CI artifacts; fork PR не пишет комментарии. Собственного расчёта процентов и merge нет.
+
+[docs/testing.md](docs/testing.md) описывает уровни и границы; актуальные проценты и невыполненные критерии указаны в PR.
