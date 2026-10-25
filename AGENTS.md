@@ -242,7 +242,7 @@ means the existing profile guard fails; an empty scaffold never passes as 100%.
   also counts. A reviewer silent for 15 minutes after the last request: say so in the PR and to the owner, stop
   waiting for it. The cycle ends when both answered the latest request and no thread is open.
 - Address findings in follow-up commits on the same branch, reply in the thread and resolve it, then request a
-  review again. Merge only on the owner's explicit current command.
+  review again. Agents never merge a PR; the owner does.
 
 ## Code Review Rules
 

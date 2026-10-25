@@ -93,8 +93,8 @@ func TestAPIComposedRepositoriesFollowOwningTransaction(t *testing.T) {
 					t.Fatal("panic payload changed", panicValue)
 				}
 			case "cancel":
-				if outcome == nil {
-					t.Fatal("cancelled request committed")
+				if !errors.Is(outcome, context.Canceled) {
+					t.Fatalf("cancelled request must fail with context.Canceled: %v", outcome)
 				}
 			case "goexit":
 				if returned || panicValue != nil {
