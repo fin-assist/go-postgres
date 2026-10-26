@@ -3,7 +3,7 @@ module github.com/fin-assist/go-postgres
 go 1.26.0
 
 require (
-	github.com/fin-assist/go-migrate v0.1.1
+	github.com/fin-assist/go-migrate v0.2.0
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
 )
