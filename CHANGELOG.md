@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- FIN-448: контроллер Renovate требует однозначную привязку обязательных checks к GitHub Actions и запрет force-push/delete; конфликтный или неизвестный PR не получает retry claim, quarantine или автозакрытие. Go runtime и публичный API не меняются.
+
 - FIN-430: добавлены профильные QA-навыки в каталог ревью (ai-qa-review, database-testing), переносимые правила применения и закреплённые источники/лицензии. Runtime, API и CI gates не меняются.
 
 ### Изменено

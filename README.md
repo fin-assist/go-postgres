@@ -108,6 +108,8 @@ CI и скрипты взяты из шаблона: tidy, vet, race, lint, CHAN
 
 Bootstrap и активация контроллера Renovate выполнены в [FIN-237](https://finassist.youtrack.cloud/issue/FIN-237); текущее включение задаёт repository variable `RENOVATE_POLICY_ENABLED`. Настройка — [docs/renovate-policy.md](docs/renovate-policy.md). Workflow Claude уже в `main`; ревью последующих PR запрашивается по [AGENTS.md](AGENTS.md#workflow).
 
+FIN-448 усиливает runtime guards контроллера: обязательные checks должны быть однозначно привязаны к GitHub Actions App15368, target запрещает force-push/delete; конфликтный или неизвестный PR не получает retry/quarantine/close. Существующие FIN-237 early-off/bootstrap guards, версии и настройки автоматизации сохраняются.
+
 ### Покрытие FIN-243
 
 `make collect-unit`, `make collect-integration`, `make collect-api` собирают независимые профили штатным Go coverage. `make check-unit`, `make check-integration`, `make check-api` проверяют каждый профиль закреплённым go-test-coverage/v2 v2.20.1 с total80. Принимается округление79,95% до80,0%; `make cover-combined` строит дополнительное объединение штатными средствами инструмента.
