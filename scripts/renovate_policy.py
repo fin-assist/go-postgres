@@ -724,6 +724,8 @@ def reconcile_pr(api, config, base, candidate, trigger):
             rules.append(rule)
         # Exact failed values override family recreation.
         rules.sort(key=lambda rule: rule.get('description') != 'FIN-211: recovery of an automatically failed dependency family')
+        if not api.fresh(number, sha, base, runs):
+            return
         # Persist version-scoped approval BEFORE closing, including major/groups.
         api.write_policy(policy, policy_sha)
         current = api.fresh(number, sha, base, runs)
